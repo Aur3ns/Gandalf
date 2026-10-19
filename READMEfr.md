@@ -1,94 +1,48 @@
-<h1 align="center">🧙‍♂️ Project Gandalf 🧙‍♂️</h1>
+# Gandalf — Pare-feu IPv4 expérimental pour Linux
 
-**Gandalf** est un script Python qui agit comme un pare-feu de base avec des fonctionnalités supplémentaires telles que la détection de spoofing ARP. Il utilise NetfilterQueue et Scapy pour la manipulation et l'inspection des paquets.
+Gandalf est un **laboratoire de filtrage de paquets IPv4** écrit en Python. Cette nouvelle version remplace l'ancien serveur d'administration incomplet par un moteur de règles testable hors ligne et un mode Linux NFQUEUE **activé uniquement sur demande**.
 
-## 🚀 Fonctionnalités
+> **Attention :** il ne s'agit pas d'un pare-feu de production. Ne testez pas l'interception réseau sur un poste distant en SSH. Utilisez une machine virtuelle jetable et gardez un accès console. Le programme **n'ajoute et ne supprime aucune règle iptables automatiquement**.
 
-- **Filtrage IP :** Bloque les paquets entrants provenant de certaines adresses IP spécifiées.
-- **Filtrage des ports :** Bloque les paquets ciblant certains ports de destination spécifiés.
-- **Filtrage par préfixe :** Bloque les paquets provenant d'adresses IP ayant des préfixes interdits.
-- **Prévention des attaques par Ping :** Bloque les paquets ICMP lorsqu'un certain seuil est dépassé dans une période de temps donnée.
-- **Détection de spoofing ARP :** Utilise un détecteur ARP pour identifier les attaques de spoofing ARP sur le réseau.
-- **Commandes administratives :** Permet à l'utilisateur de verrouiller/déverrouiller le pare-feu en utilisant un mot de passe administrateur.
-- **Surveillance en temps réel :** Suivi en temps réel des statistiques réseau pour chaque interface.
-- **Journalisation :** Toutes les activités sont enregistrées dans un fichier log pour le suivi et l'analyse.
+## Fonctionnalités
 
-## 🛠 Prérequis
+- Bloquer des adresses IPv4 sources et des réseaux CIDR.
+- Bloquer des ports de destination TCP/UDP.
+- Limiter les requêtes ICMP echo grâce à une fenêtre glissante.
+- Bloquer éventuellement les fragments IPv4 : utile contre certains contournements, mais peut interrompre un trafic légitime.
+- Surveiller en lecture seule les changements d'association IP/MAC par ARP (signal d'enquête, pas preuve d'une attaque).
+- Simuler les décisions à partir d'un fichier JSONL sans réseau, privilège root ni dépendance externe.
 
-- Python 3.x
-- NetfilterQueue
-- Scapy
-- Cryptography
-- Netifaces
-- Psutil
+## Démarrage rapide — sans modifier le réseau
 
-## 📦 Installation des dépendances
-
-Installez les dépendances requises en utilisant la commande suivante :
+Python 3.10 ou supérieur :
 
 ```bash
-pip install netfilterqueue scapy cryptography netifaces psutil
+python3 gandalf.py --check-config
+python3 -m unittest discover -s tests -v
 ```
 
-## ⚙️ Configuration
-
-### 1. Configuration du fichier `firewallrules.json`
-
-Créez un fichier `firewallrules.json` pour définir vos règles de pare-feu. Exemple de configuration :
-
-```json
-{
-  "ListOfBannedIpAddr": ["10.0.0.2", "192.168.1.5"],
-  "ListOfBannedPorts": [22, 8080],
-  "ListOfBannedPrefixes": ["192.168.2", "10.0.0"],
-  "TimeThreshold": 10,
-  "PacketThreshold": 100,
-  "BlockPingAttacks": true
-}
-```
-
-### 2. Configuration du script
-
-Modifiez les variables suivantes dans le script pour correspondre à votre configuration réseau :
-
-- **SERVER_IP** : L'adresse IP sur laquelle le pare-feu écoutera.
-- **SERVER_PORT** : Le port sur lequel le pare-feu écoutera.
-- **ALLOWED_IPS** : Les adresses IP autorisées à accéder au serveur.
-
-### 3. Ajustement de l'interface réseau
-
-Assurez-vous de remplacer \`"your_network_interface"\` par le nom réel de votre interface réseau dans le script. Par exemple : \`"eth0"\` ou \`"wlan0"\`.
-
-## 🚀 Utilisation
-
-1. Exécutez le script avec la commande suivante :
+Exemple de simulation :
 
 ```bash
-python firewall.py
+printf '%s\n' '{"src":"192.168.43.181","protocol":"tcp","dport":443}' > /tmp/gandalf-test.jsonl
+python3 gandalf.py --simulate /tmp/gandalf-test.jsonl
 ```
 
-2. Le script commencera à écouter les connexions entrantes sur l'IP et le port spécifiés.
+La configuration `firewallrules.json` est un **exemple comprenant de véritables interdictions** (notamment les ports 80 et 81, et le réseau `172.0.0.0/8`) : adaptez-la avant toute exécution réelle. Les préfixes réseau s'écrivent au format CIDR (`192.168.2.0/24`) et les booléens JSON sans guillemets (`true`/`false`).
 
-3. Utilisez la fonction \`handle_admin_commands\` pour verrouiller/déverrouiller le pare-feu et gérer les paramètres de sécurité.
+## Filtrage réseau réel (VM Linux seulement)
 
-### Commandes administratives
+Le mode `--live` nécessite les bibliothèques NFQUEUE et les privilèges root. Il écoute une file ; il **ne raccorde pas lui-même la file au pare-feu du système**.
 
-- **lock** : Verrouille le pare-feu (nécessite le mot de passe admin).
-- **unlock** : Déverrouille le pare-feu (nécessite le mot de passe admin).
-- **exit** : Quitte le mode commande admin.
+Installez les prérequis et consultez la [documentation principale (anglais)](README.md#live-filtering-on-debian--ubuntu-disposable-vm-only) pour les commandes d'installation, les exemples de règles iptables avec `--queue-bypass`, et surtout la procédure de retrait **exacte** de la règle d'interception.
 
-### Surveillance en temps réel
+**Limites :** IPv4 seulement, aucun suivi d'état des connexions, pas d'inspection applicative, performances Python non qualifiées. `--queue-bypass` laisse passer les paquets lorsque le listener est absent ; il ne faut pas le considérer comme une protection haute disponibilité.
 
-Le script surveille en temps réel les statistiques du réseau pour chaque interface disponible et les enregistre dans le fichier log (\`firewall_logs.log\`).
+## Tests et sécurité
 
-## 📝 Journalisation
+La CI compile le code, valide la configuration et lance les tests hors ligne sur plusieurs versions de Python. Ces tests **ne valent pas validation du noyau Linux, des performances réseau ni d'une protection contre des attaques réelles**.
 
-Toutes les activités du pare-feu sont enregistrées dans le fichier \`firewall_logs.log\`. Cela inclut les tentatives de connexion, les détections d'attaques, et les modifications des paramètres du pare-feu.
+Pour tous les détails techniques, la compatibilité, le déploiement et le dépannage, voir le [README principal](README.md).
 
-## Support Docker
-
-Vous pouvez utiliser Docker pour implémenter le projet dans un conteneur
-
-
-
-
+Licence : MIT ([LICENSE](LICENSE)).
