@@ -1,8 +1,5 @@
-socket
-time
-threading 
-json 
-logging 
-netfilterqueue
-scapy
-cryptography.
+# Required only for --live on a Linux host with NFQUEUE kernel support.
+NetfilterQueue>=1.0
+# Optional: --arp-interface / --monitor-stats respectively.
+scapy>=2.5
+psutil>=5.9
